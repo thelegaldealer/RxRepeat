@@ -1,6 +1,7 @@
 import React from 'react';
 import { HashRouter as Router, Routes, Route } from 'react-router-dom';
 import { Home } from './src/pages/Home';
+import { Play, BookOpen, GraduationCap, ArrowRight, Upload, Search, MessageSquare, X, Send, Menu, LogOut, LayoutDashboard, User } from 'lucide-react';
 import { CourseView } from './src/pages/CourseView';
 import { MaterialsView } from './src/pages/MaterialsView';
 import { AdminDashboard } from './src/pages/AdminDashboard';

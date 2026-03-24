@@ -10,3 +10,4 @@ Pillow
 gunicorn
 whitenoise
 dj-database-url
+google-generativeai

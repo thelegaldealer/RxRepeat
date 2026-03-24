@@ -171,5 +171,27 @@ if config('GS_BUCKET_NAME', default=None):
     DEFAULT_FILE_STORAGE = 'storages.backends.gcloud.GoogleCloudStorage'
     GS_BUCKET_NAME = config('GS_BUCKET_NAME')
     GS_PROJECT_ID = config('GS_PROJECT_ID', default=None)
-    GS_CREDENTIALS = config('GOOGLE_APPLICATION_CREDENTIALS', default=None)
+    # Check if we have the JSON content directly in env var (for Render)
+    google_creds_json = config('GOOGLE_CREDENTIALS_JSON', default=None)
+    if google_creds_json:
+        import json
+        import base64
+        try:
+             # Try determining if it's base64 encoded or raw json
+            if google_creds_json.strip().startswith('{'):
+                creds_dict = json.loads(google_creds_json)
+            else:
+                creds_dict = json.loads(base64.b64decode(google_creds_json))
+            
+            from google.oauth2 import service_account
+            GS_CREDENTIALS = service_account.Credentials.from_service_account_info(creds_dict)
+        except Exception as e:
+            print(f"Error loading GOOGLE_CREDENTIALS_JSON: {e}")
+            GS_CREDENTIALS = None 
+    else:
+        # Fallback to file path
+        GS_CREDENTIALS = config('GOOGLE_APPLICATION_CREDENTIALS', default=None)
+
+# Gemini API
+GEMINI_API_KEY = config('GEMINI_API_KEY', default=None)
 
