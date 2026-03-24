@@ -26,7 +26,7 @@ services:
       - key: ALLOWED_HOSTS
         value: "*" # Update this with your actual Render URL after first deploy
       - key: CORS_ALLOWED_ORIGINS
-        value: "https://your-frontend-url.vercel.app" # Update this with your Vercel URL
+        value: "https://rx-repeat-6yzg.vercel.app"
       - key: DATABASE_URL
         fromDatabase:
           name: unimaster_db
