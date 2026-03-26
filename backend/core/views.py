@@ -244,9 +244,23 @@ class GoogleLoginView(APIView):
                 user.is_active = True
                 user.save()
             
-            refresh = RefreshToken.for_user(user)
+            from .serializers import CustomTokenObtainPairSerializer
+            from .models import ActiveSession
+            from rest_framework_simplejwt.tokens import AccessToken
+            from datetime import datetime, timezone
+
+            refresh = CustomTokenObtainPairSerializer.get_token(user)
+            access = str(refresh.access_token)
+            
+            access_token_obj = AccessToken(access)
+            jti = access_token_obj['jti']
+            expires_at = datetime.fromtimestamp(access_token_obj['exp'], tz=timezone.utc)
+            
+            ActiveSession.objects.filter(user=user).delete()
+            ActiveSession.objects.create(user=user, session_token=jti, expires_at=expires_at)
+
             return Response({
-                'access': str(refresh.access_token),
+                'access': access,
                 'refresh': str(refresh),
                 'user': UserSerializer(user).data
             })
