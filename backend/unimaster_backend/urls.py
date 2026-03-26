@@ -47,9 +47,13 @@ from django.contrib import admin
 from django.urls import path, include
 from rest_framework.routers import DefaultRouter
 from core.views import (
-    UniversityViewSet, CourseViewSet, 
+    UniversityViewSet, CourseViewSet, ModuleViewSet, ContentPageViewSet,
     MaterialViewSet, PermissionRequestViewSet, RegisterView,
-    CustomTokenObtainPairView, UserViewSet, YearViewSet, CheckEmailView, ActivateAdminView
+    CustomTokenObtainPairView, UserViewSet, YearViewSet, CheckEmailView, ActivateAdminView,
+    LogoutView, VerifyEmailView, GoogleLoginView, SuperadminSubscriberView,
+    MyCoursesView,
+    FlashcardSetViewSet, FlashcardProgressViewSet, PracticePaperViewSet,
+    AnnouncementViewSet, InboxNotificationViewSet, ChatInviteViewSet, TicketViewSet
 )
 from rest_framework_simplejwt.views import (
     TokenObtainPairView,
@@ -62,16 +66,30 @@ from core.views_ai import chat_with_ai
 router = DefaultRouter()
 router.register(r'universities', UniversityViewSet)
 router.register(r'courses', CourseViewSet)
+router.register(r'modules', ModuleViewSet, basename='module')
+router.register(r'pages', ContentPageViewSet, basename='page')
 router.register(r'materials', MaterialViewSet)
 router.register(r'permissions', PermissionRequestViewSet)
 router.register(r'users', UserViewSet)
+router.register(r'flashcard-sets', FlashcardSetViewSet, basename='flashcardset')
+router.register(r'flashcard-progress', FlashcardProgressViewSet, basename='flashcardprogress')
+router.register(r'practice-papers', PracticePaperViewSet, basename='practicepaper')
+router.register(r'announcements', AnnouncementViewSet, basename='announcement')
+router.register(r'inbox', InboxNotificationViewSet, basename='inbox')
+router.register(r'chat-invites', ChatInviteViewSet, basename='chatinvite')
+router.register(r'tickets', TicketViewSet, basename='ticket')
 router.register(r'years', YearViewSet)
 
 urlpatterns = [
     path('admin/', admin.site.urls),
     path('api/', include(router.urls)),
     path('api/register/', RegisterView.as_view(), name='auth_register'),
+    path('api/register/verify/', VerifyEmailView.as_view(), name='auth_verify_email'),
+    path('api/auth/google/', GoogleLoginView.as_view(), name='auth_google'),
+    path('api/subscribers/', SuperadminSubscriberView.as_view(), name='admin_subscribers'),
+    path('api/my-courses/', MyCoursesView.as_view(), name='my_courses'),
     path('api/token/', CustomTokenObtainPairView.as_view(), name='token_obtain_pair'),
+    path('api/logout/', LogoutView.as_view(), name='logout'),
     path('api/token/refresh/', TokenRefreshView.as_view(), name='token_refresh'),
     path('api/check-email/', CheckEmailView.as_view(), name='check_email'),
     path('api/activate-admin/', ActivateAdminView.as_view(), name='activate_admin'),
