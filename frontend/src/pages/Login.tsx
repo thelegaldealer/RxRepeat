@@ -39,6 +39,16 @@ export default function Login() {
   const handleGoogleSuccess = async (credentialResponse: any) => {
     try {
       const res = await api.post('/auth/google/', { id_token: credentialResponse.credential });
+      if (res.data.registration_incomplete) {
+        navigate('/onboarding', { 
+          state: { 
+            email: res.data.email, 
+            first_name: res.data.first_name, 
+            last_name: res.data.last_name 
+          } 
+        });
+        return;
+      }
       login(res.data.access, res.data.refresh);
       navigate('/dashboard');
     } catch (err: any) {

@@ -47,11 +47,11 @@ from django.contrib import admin
 from django.urls import path, include
 from rest_framework.routers import DefaultRouter
 from core.views import (
-    UniversityViewSet, CourseViewSet, ModuleViewSet, ContentPageViewSet,
+    UniversityViewSet, CourseViewSet, CourseTabViewSet, ContentNodeViewSet,
     MaterialViewSet, PermissionRequestViewSet, RegisterView,
     CustomTokenObtainPairView, UserViewSet, YearViewSet, CheckEmailView, ActivateAdminView,
     LogoutView, VerifyEmailView, GoogleLoginView, SuperadminSubscriberView,
-    MyCoursesView,
+    MyCoursesView, OnboardingView,
     FlashcardSetViewSet, FlashcardProgressViewSet, PracticePaperViewSet,
     AnnouncementViewSet, InboxNotificationViewSet, ChatInviteViewSet, TicketViewSet
 )
@@ -66,8 +66,8 @@ from core.views_ai import chat_with_ai
 router = DefaultRouter()
 router.register(r'universities', UniversityViewSet)
 router.register(r'courses', CourseViewSet)
-router.register(r'modules', ModuleViewSet, basename='module')
-router.register(r'pages', ContentPageViewSet, basename='page')
+router.register(r'tabs', CourseTabViewSet, basename='coursetab')
+router.register(r'nodes', ContentNodeViewSet, basename='contentnode')
 router.register(r'materials', MaterialViewSet)
 router.register(r'permissions', PermissionRequestViewSet)
 router.register(r'users', UserViewSet)
@@ -85,6 +85,7 @@ urlpatterns = [
     path('api/', include(router.urls)),
     path('api/register/', RegisterView.as_view(), name='auth_register'),
     path('api/register/verify/', VerifyEmailView.as_view(), name='auth_verify_email'),
+    path('api/onboarding/', OnboardingView.as_view(), name='auth_onboarding'),
     path('api/auth/google/', GoogleLoginView.as_view(), name='auth_google'),
     path('api/subscribers/', SuperadminSubscriberView.as_view(), name='admin_subscribers'),
     path('api/my-courses/', MyCoursesView.as_view(), name='my_courses'),

@@ -36,14 +36,14 @@ const PageTree = ({ pages, parentId, level = 0, activePageId, setActivePageId }:
 };
 
 export default function ModuleContent() {
-  const { moduleId } = useParams();
+  const { nodeId } = useParams();
   const [pages, setPages] = useState<any[]>([]);
   const [activePageId, setActivePageId] = useState<number | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
 
   useEffect(() => {
-    api.get(`/content-pages/?module=${moduleId}`)
+    api.get(`/nodes/?tab=${nodeId}&node_type=page`)
        .then(res => {
           setPages(res.data);
           if (res.data.length > 0) {
@@ -55,7 +55,7 @@ export default function ModuleContent() {
        })
        .catch(err => setError('Failed to load module content.'))
        .finally(() => setLoading(false));
-  }, [moduleId]);
+  }, [nodeId]);
 
   if (loading) {
     return (

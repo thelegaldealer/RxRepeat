@@ -1,21 +1,21 @@
 import React, { useState, useEffect } from 'react';
-import { useNavigate, Link } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
 import api from '../services/api';
+import { useAuth } from '../context/AuthContext';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
-import { GoogleLogin } from '@react-oauth/google';
-import { useAuth } from '../context/AuthContext';
 import { Loader2 } from 'lucide-react';
 import { University, Course } from '../types';
 
-export default function Register() {
-  const [firstName, setFirstName] = useState('');
-  const [lastName, setLastName] = useState('');
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
-  const [confirmPassword, setConfirmPassword] = useState('');
+export default function Onboarding() {
+  const location = useLocation();
+  const navigate = useNavigate();
+  const { login } = useAuth();
+  
+  const [firstName, setFirstName] = useState(location.state?.first_name || '');
+  const [lastName, setLastName] = useState(location.state?.last_name || '');
   const [universityId, setUniversityId] = useState('');
   const [courseId, setCourseId] = useState('');
   
@@ -23,9 +23,13 @@ export default function Register() {
   const [courses, setCourses] = useState<Course[]>([]);
   const [error, setError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
-  const navigate = useNavigate();
-  const { login } = useAuth();
   
+  useEffect(() => {
+    if (!location.state?.email) {
+      navigate('/login');
+    }
+  }, [location, navigate]);
+
   useEffect(() => {
     api.get<University[]>('/universities/').then(res => setUniversities(res.data)).catch(console.error);
     api.get<Course[]>('/courses/').then(res => setCourses(res.data)).catch(console.error);
@@ -35,52 +39,30 @@ export default function Register() {
     e.preventDefault();
     setError('');
     setIsLoading(true);
-    if (password !== confirmPassword) {
+    
+    if (!universityId || !courseId || !firstName || !lastName) {
+      setError('All fields are required.');
       setIsLoading(false);
-      return setError('Passwords do not match');
+      return;
     }
-    if (!universityId || !courseId) {
-      setIsLoading(false);
-      return setError('Please select a university and course');
-    }
+
     try {
-      await api.post('/register/', { 
-        first_name: firstName, 
-        last_name: lastName, 
-        email, 
-        password, 
-        password_confirm: confirmPassword,
+      const res = await api.post('/onboarding/', {
+        email: location.state?.email,
+        first_name: firstName,
+        last_name: lastName,
         university: universityId,
         course: courseId
       });
-      navigate(`/verify-email?email=${encodeURIComponent(email)}`);
+      login(res.data.access, res.data.refresh);
+      navigate('/dashboard');
     } catch (err: any) {
-      setError(err.response?.data?.error || err.response?.data?.first_name?.[0] || 'Registration failed');
+      setError(err.response?.data?.error || 'Failed to complete registration.');
     } finally {
       setIsLoading(false);
     }
   };
 
-  const handleGoogleSuccess = async (credentialResponse: any) => {
-    try {
-      const res = await api.post('/auth/google/', { id_token: credentialResponse.credential });
-      if (res.data.registration_incomplete) {
-        navigate('/onboarding', { 
-          state: { 
-            email: res.data.email, 
-            first_name: res.data.first_name, 
-            last_name: res.data.last_name 
-          } 
-        });
-        return;
-      }
-      login(res.data.access, res.data.refresh);
-      navigate('/dashboard');
-    } catch (err: any) {
-      setError('Google Authentication Failed.');
-    }
-  };
-  
   const filteredCourses = courses.filter(c => c.universityId === universityId);
 
   return (
@@ -88,10 +70,10 @@ export default function Register() {
       <Card className="w-full max-w-md shadow-lg">
         <CardHeader className="space-y-1">
           <CardTitle className="text-2xl font-bold tracking-tight text-center">
-            Create an account
+            Complete your profile
           </CardTitle>
           <CardDescription className="text-center">
-            Enter your details below to create your account
+            You're almost there! We just need a few more details.
           </CardDescription>
         </CardHeader>
         <form onSubmit={handleSubmit}>
@@ -101,31 +83,12 @@ export default function Register() {
                 {error}
               </div>
             )}
-            <div className="flex justify-center mb-4">
-              <GoogleLogin
-                onSuccess={handleGoogleSuccess}
-                onError={() => setError('Google Log in failed')}
-                theme="filled_blue"
-                shape="rectangular"
-                text="signup_with"
-              />
-            </div>
             
-            <div className="relative">
-              <div className="absolute inset-0 flex items-center">
-                <span className="w-full border-t border-border" />
-              </div>
-              <div className="relative flex justify-center text-xs uppercase">
-                <span className="bg-card px-2 text-muted-foreground">Or continue with</span>
-              </div>
-            </div>
-
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label htmlFor="firstName">First Name</Label>
                 <Input 
                   id="firstName" 
-                  placeholder="John" 
                   required 
                   value={firstName}
                   onChange={e => setFirstName(e.target.value)}
@@ -135,14 +98,13 @@ export default function Register() {
                 <Label htmlFor="lastName">Last Name</Label>
                 <Input 
                   id="lastName" 
-                  placeholder="Doe" 
                   required 
                   value={lastName}
                   onChange={e => setLastName(e.target.value)}
                 />
               </div>
             </div>
-            
+
             <div className="space-y-2">
               <Label htmlFor="university">University</Label>
               <select 
@@ -176,51 +138,11 @@ export default function Register() {
               </select>
             </div>
 
-            <div className="space-y-2">
-              <Label htmlFor="email">Email</Label>
-              <Input 
-                id="email" 
-                type="email" 
-                placeholder="jane@university.edu" 
-                required 
-                value={email}
-                onChange={e => setEmail(e.target.value)}
-              />
-            </div>
-            
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label htmlFor="password">Password</Label>
-                <Input 
-                  id="password" 
-                  type="password" 
-                  required 
-                  value={password}
-                  onChange={e => setPassword(e.target.value)}
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="confirm_password">Confirm Password</Label>
-                <Input 
-                  id="confirm_password" 
-                  type="password" 
-                  required 
-                  value={confirmPassword}
-                  onChange={e => setConfirmPassword(e.target.value)}
-                />
-              </div>
-            </div>
           </CardContent>
-          <CardFooter className="flex flex-col space-y-4">
+          <CardFooter>
             <Button type="submit" className="w-full" disabled={isLoading}>
-              {isLoading ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Creating...</> : 'Create account'}
+              {isLoading ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Saving...</> : 'Complete Setup'}
             </Button>
-            <div className="text-sm text-center text-muted-foreground">
-              Already have an account?{" "}
-              <Link to="/login" className="font-medium text-primary hover:underline">
-                Sign in
-              </Link>
-            </div>
           </CardFooter>
         </form>
       </Card>

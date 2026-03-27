@@ -3,6 +3,7 @@ import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-d
 import { AuthProvider } from './context/AuthContext';
 import { ThemeProvider } from './context/ThemeContext';
 import ProtectedRoute from './components/ProtectedRoute';
+import RoleRoute from './components/RoleRoute';
 import DashboardLayout from './components/layout/DashboardLayout';
 import { GoogleOAuthProvider } from '@react-oauth/google';
 
@@ -11,6 +12,7 @@ import Login from './pages/Login';
 import Register from './pages/Register';
 import ForgotPassword from './pages/ForgotPassword';
 import VerifyEmail from './pages/VerifyEmail';
+import Onboarding from './pages/Onboarding';
 
 // Dashboard Placeholder Pages
 import PlaceholderPage from './pages/PlaceholderPage';
@@ -56,6 +58,7 @@ export default function App() {
             <Route path="/register" element={<Register />} />
             <Route path="/verify-email" element={<VerifyEmail />} />
             <Route path="/forgot-password" element={<ForgotPassword />} />
+            <Route path="/onboarding" element={<Onboarding />} />
 
             <Route 
               path="/dashboard" 
@@ -67,9 +70,10 @@ export default function App() {
             >
               <Route index element={<MyCourses />} />
               <Route path="courses/:courseId" element={<CourseDetail />} />
-              <Route path="modules/:moduleId/content" element={<ModuleContent />} />
-              <Route path="modules/:moduleId/flashcards" element={<ModuleFlashcards />} />
-              <Route path="modules/:moduleId/papers" element={<PracticePapers />} />
+              <Route path="courses/:courseId/expert" element={<PlaceholderPage title="Contact an Expert" />} />
+              <Route path="nodes/:nodeId/content" element={<ModuleContent />} />
+              <Route path="nodes/:nodeId/flashcards" element={<ModuleFlashcards />} />
+              <Route path="nodes/:nodeId/papers" element={<PracticePapers />} />
               <Route path="schedule" element={<Schedule />} />
               <Route path="inbox" element={<Inbox />} />
               <Route path="settings" element={<AccountSettings />} />
@@ -79,7 +83,11 @@ export default function App() {
               <Route path="contact" element={<Contact />} />
               <Route path="inbox" element={<PlaceholderPage title="Notifications Inbox" />} />
               <Route path="account" element={<PlaceholderPage title="Profile & Settings" />} />
-              <Route path="subscribers" element={<SuperadminSubscribers />} />
+              <Route path="subscribers" element={
+                <RoleRoute allowedRoles={['owner']}>
+                  <SuperadminSubscribers />
+                </RoleRoute>
+              } />
             </Route>
 
             <Route path="*" element={<Navigate to="/dashboard" replace />} />

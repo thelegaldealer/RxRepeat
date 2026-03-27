@@ -5,10 +5,13 @@ class User(AbstractUser):
     ROLE_CHOICES = (
         ('student', 'Student'),
         ('admin', 'Admin'),
-        ('super_admin', 'Super Admin'),
+        ('owner', 'Owner'),
     )
     email = models.EmailField(unique=True)
     role = models.CharField(max_length=20, choices=ROLE_CHOICES, default='student')
+    
+    university = models.ForeignKey('University', on_delete=models.SET_NULL, null=True, blank=True, related_name='students')
+    course = models.ForeignKey('Course', on_delete=models.SET_NULL, null=True, blank=True, related_name='students')
     
     USERNAME_FIELD = 'email'
     REQUIRED_FIELDS = ['first_name', 'last_name']
@@ -113,17 +116,17 @@ class AccountDeletionQueue(models.Model):
         return f"Deletion scheduled for {self.user.email} on {self.scheduled_deletion_date}"
 
 # --- ROLES & PERMISSIONS ---
-class AdminPermission(models.Model):
-    user = models.OneToOneField(User, on_delete=models.CASCADE, related_name='admin_permissions')
-    can_view_content = models.BooleanField(default=False)
-    can_edit_content = models.BooleanField(default=False)
-    can_view_complaints = models.BooleanField(default=False)
-    can_answer_complaints = models.BooleanField(default=False)
-    can_moderate_forums = models.BooleanField(default=False)
-    can_view_analytics = models.BooleanField(default=False)
+class AdminProfile(models.Model):
+    user = models.OneToOneField(User, on_delete=models.CASCADE, related_name='admin_profile')
+    can_manage_content = models.BooleanField(default=False)
+    can_view_expert_messages = models.BooleanField(default=False)
+    
+    is_global = models.BooleanField(default=False)
+    scoped_universities = models.ManyToManyField('University', blank=True, related_name='admin_profiles')
+    scoped_courses = models.ManyToManyField('Course', blank=True, related_name='admin_profiles')
 
     def __str__(self):
-        return f"Permissions for {self.user.email}"
+        return f"Admin Profile: {self.user.email}"
 
 # --- BILLING & SUBSCRIPTIONS ---
 class SubscriptionPlan(models.Model):
@@ -151,48 +154,72 @@ class UserSubscription(models.Model):
     def __str__(self):
         return f"{self.user.email} -> {self.course.name} ({self.status})"
 
-class FeeWaiver(models.Model):
-    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='fee_waivers')
-    courses = models.ManyToManyField(Course, related_name='fee_waivers')
-    start_date = models.DateTimeField(auto_now_add=True)
-    expiry_date = models.DateTimeField()
+class PreApprovedWaiver(models.Model):
+    email = models.EmailField()
+    university = models.ForeignKey(University, on_delete=models.CASCADE, related_name='waivers')
+    course = models.ForeignKey(Course, on_delete=models.CASCADE, related_name='waivers')
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        unique_together = ('email', 'university', 'course')
 
     def __str__(self):
-        return f"Waiver for {self.user.email} until {self.expiry_date}"
+        return f"Waiver: {self.email} -> {self.course.code}"
 
 # --- COURSES EXTENSIONS ---
-class Module(models.Model):
-    course = models.ForeignKey(Course, on_delete=models.CASCADE, related_name='modules')
-    title = models.CharField(max_length=255)
-    order = models.IntegerField(default=0)
-
-    class Meta:
-        ordering = ['order']
-
+class CourseTab(models.Model):
+    course = models.ForeignKey(Course, on_delete=models.CASCADE, related_name='tabs')
+    name = models.CharField(max_length=100)
+    tab_type = models.CharField(max_length=50) # 'content', 'flashcards', 'practice_papers'
+    
     def __str__(self):
-        return f"{self.course.code} - {self.title}"
+        return f"{self.course.code} - {self.name}"
 
-# --- CONTENT & STUDY MODELS ---
-class ContentPage(models.Model):
-    TYPE_CHOICES = (
-        ('content', 'Content'),
-        ('condensed_notes', 'Condensed Notes'),
-    )
-    module = models.ForeignKey(Module, on_delete=models.CASCADE, related_name='pages')
+class ContentNode(models.Model):
+    tab = models.ForeignKey(CourseTab, on_delete=models.CASCADE, related_name='nodes')
     parent = models.ForeignKey('self', on_delete=models.CASCADE, null=True, blank=True, related_name='children')
-    content_type = models.CharField(max_length=50, choices=TYPE_CHOICES, default='content')
     title = models.CharField(max_length=255)
-    body_json = models.JSONField(default=dict)
+    node_type = models.CharField(max_length=50) # 'folder', 'page', 'flashcard_set', 'practice_paper', 'link'
+    body = models.JSONField(default=dict, blank=True)
     order = models.IntegerField(default=0)
 
     class Meta:
         ordering = ['order']
 
     def __str__(self):
-        return f"{self.title} (Module: {self.module.title})"
+        return self.title
+        
+class CourseExpert(models.Model):
+    course = models.ForeignKey(Course, on_delete=models.CASCADE, related_name='experts')
+    email = models.EmailField()
+    user = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name='expert_roles')
+    assigned_at = models.DateTimeField(auto_now_add=True)
+
+    def __str__(self):
+        return f"Expert {self.email} for {self.course.code}"
+
+class ExpertQuestion(models.Model):
+    STATUS_CHOICES = (
+        ('open', 'Open'),
+        ('closed', 'Closed'),
+    )
+    course = models.ForeignKey(Course, on_delete=models.CASCADE, related_name='expert_questions')
+    student = models.ForeignKey(User, on_delete=models.CASCADE, related_name='asked_questions')
+    subject = models.CharField(max_length=255)
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='open')
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    def __str__(self):
+        return f"{self.subject} by {self.student.email}"
+
+class ExpertMessage(models.Model):
+    question = models.ForeignKey(ExpertQuestion, on_delete=models.CASCADE, related_name='messages')
+    sender = models.ForeignKey(User, on_delete=models.CASCADE)
+    body = models.TextField()
+    created_at = models.DateTimeField(auto_now_add=True)
 
 class FlashcardSet(models.Model):
-    module = models.ForeignKey(Module, on_delete=models.CASCADE, related_name='flashcard_sets')
+    node = models.OneToOneField(ContentNode, on_delete=models.CASCADE, related_name='flashcard_set', null=True, blank=True)
     title = models.CharField(max_length=255)
 
     def __str__(self):
@@ -220,7 +247,7 @@ class FlashcardProgress(models.Model):
         return f"Progress {self.user.email} -> Card {self.card.id}"
 
 class PracticePaper(models.Model):
-    module = models.ForeignKey(Module, on_delete=models.CASCADE, related_name='practice_papers')
+    node = models.OneToOneField(ContentNode, on_delete=models.CASCADE, related_name='practice_paper', null=True, blank=True)
     title = models.CharField(max_length=255)
     description = models.TextField(blank=True)
     date = models.DateField(null=True, blank=True)
@@ -373,3 +400,13 @@ class PlatformSettings(models.Model):
 
     class Meta:
         verbose_name_plural = "Platform Settings"
+
+from django.db.models.signals import post_save
+from django.dispatch import receiver
+
+@receiver(post_save, sender=Course)
+def create_default_course_tabs(sender, instance, created, **kwargs):
+    if created:
+        CourseTab.objects.get_or_create(course=instance, name='Content', tab_type='content')
+        CourseTab.objects.get_or_create(course=instance, name='Flashcards', tab_type='flashcards')
+        CourseTab.objects.get_or_create(course=instance, name='Practice Papers', tab_type='practice_papers')

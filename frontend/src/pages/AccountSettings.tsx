@@ -45,7 +45,7 @@ export default function AccountSettings() {
               <TabsTrigger value="security" className="w-full justify-start data-[state=active]:bg-primary/10 data-[state=active]:text-primary px-4 py-2">
                 <Shield className="mr-2 h-4 w-4" /> Security
               </TabsTrigger>
-              {user?.role === 'super_admin' && (
+              {['admin', 'owner'].includes(user?.role || '') && (
                 <TabsTrigger value="admin" className="w-full justify-start data-[state=active]:bg-red-500/10 data-[state=active]:text-red-600 px-4 py-2">
                   <ServerOff className="mr-2 h-4 w-4" /> Developer Tools
                 </TabsTrigger>
@@ -76,6 +76,15 @@ export default function AccountSettings() {
                       <p className="text-xs text-muted-foreground">
                         Your email address is your identity and cannot be changed here.
                       </p>
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="role">Platform Role</Label>
+                      <Input id="role" defaultValue={user?.role?.toUpperCase()} disabled />
+                      {user?.role === 'admin' && (
+                         <p className="text-xs text-muted-foreground mt-1 text-primary">
+                           You have administrative permissions.
+                         </p>
+                      )}
                     </div>
                     <Button className="mt-2">Save Changes</Button>
                   </CardContent>

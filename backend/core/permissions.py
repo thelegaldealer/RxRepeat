@@ -1,8 +1,8 @@
 from rest_framework import permissions
 
-class IsSuperAdmin(permissions.BasePermission):
+class IsOwner(permissions.BasePermission):
     def has_permission(self, request, view):
-        return bool(request.user and request.user.is_authenticated and request.user.role == 'super_admin')
+        return bool(request.user and request.user.is_authenticated and request.user.role == 'owner')
 
 class IsAdminUserWithPermission(permissions.BasePermission):
     permission_flag = None
@@ -11,27 +11,27 @@ class IsAdminUserWithPermission(permissions.BasePermission):
         if not request.user or not request.user.is_authenticated:
             return False
             
-        if request.user.role == 'super_admin':
+        if request.user.role == 'owner':
             return True
             
         if request.user.role == 'admin':
-            if hasattr(request.user, 'adminpermission'):
-                return getattr(request.user.adminpermission, self.permission_flag, False)
+            if hasattr(request.user, 'admin_profile'):
+                return getattr(request.user.admin_profile, self.permission_flag, False)
                 
         return False
 
-class CanViewAnalytics(IsAdminUserWithPermission):
-    permission_flag = 'can_view_analytics'
+class CanManageContent(IsAdminUserWithPermission):
+    permission_flag = 'can_manage_content'
 
-class CanEditContent(IsAdminUserWithPermission):
-    permission_flag = 'can_edit_content'
-
-class CanModerateForums(IsAdminUserWithPermission):
-    permission_flag = 'can_moderate_forums'
-
-class CanAnswerComplaints(IsAdminUserWithPermission):
-    permission_flag = 'can_answer_complaints'
+class CanViewExpertMessages(IsAdminUserWithPermission):
+    permission_flag = 'can_view_expert_messages'
 
 class IsEnrolledStudent(permissions.BasePermission):
     def has_permission(self, request, view):
-        return bool(request.user and request.user.is_authenticated and request.user.role == 'student')
+        return bool(
+            request.user and 
+            request.user.is_authenticated and 
+            request.user.role == 'student' and 
+            request.user.university_id and 
+            request.user.course_id
+        )

@@ -13,7 +13,7 @@ import {
 import { Card } from '@/components/ui/card';
 
 export default function ModuleFlashcards() {
-  const { moduleId } = useParams();
+  const { nodeId } = useParams();
   const [decks, setDecks] = useState<any[]>([]);
   const [activeDeckId, setActiveDeckId] = useState<string>('');
   const [loading, setLoading] = useState(true);
@@ -24,7 +24,7 @@ export default function ModuleFlashcards() {
   const [mode, setMode] = useState('all'); // 'all' or 'needs_work'
 
   useEffect(() => {
-    api.get(`/flashcard-sets/?module=${moduleId}`)
+    api.get(`/flashcard-sets/?node__tab=${nodeId}`)
        .then(res => {
           setDecks(res.data);
           if (res.data.length > 0) {
@@ -34,7 +34,7 @@ export default function ModuleFlashcards() {
        })
        .catch(err => console.error('Failed to load decks'))
        .finally(() => setLoading(false));
-  }, [moduleId]);
+  }, [nodeId]);
 
   useEffect(() => {
     if (activeDeckId) {
@@ -89,7 +89,7 @@ export default function ModuleFlashcards() {
                  <ArrowLeft className="h-4 w-4" />
               </Link>
             </Button>
-            <span>Module {moduleId}</span>
+            <span>Node {nodeId}</span>
             <ArrowRight className="h-3 w-3" />
             <span className="text-foreground font-medium">Flashcards</span>
           </div>

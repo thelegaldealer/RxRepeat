@@ -13,13 +13,13 @@ import {
 
 export default function CourseDetail() {
   const { courseId } = useParams();
-  const [modules, setModules] = useState<any[]>([]);
+  const [tabs, setTabs] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
 
   useEffect(() => {
-    api.get(`/modules/?course=${courseId}`)
-       .then(res => setModules(res.data))
+    api.get(`/tabs/?course=${courseId}`)
+       .then(res => setTabs(res.data))
        .catch(err => setError('Failed to load course syllabus. You may not have access.'))
        .finally(() => setLoading(false));
   }, [courseId]);
@@ -44,11 +44,18 @@ export default function CourseDetail() {
   return (
     <div className="space-y-6">
       <div>
-        <h2 className="text-3xl font-bold tracking-tight">Course Modules</h2>
-        <p className="text-muted-foreground">Explore the syllabus structure and dive into your content.</p>
+        <h2 className="text-3xl font-bold tracking-tight">Course Curriculum</h2>
+        <div className="flex justify-between items-center">
+          <p className="text-muted-foreground">Explore the curriculum structure and dive into your content.</p>
+          <Button asChild className="bg-purple-600 hover:bg-purple-700">
+            <Link to={`/dashboard/courses/${courseId}/expert`}>
+              <SendHorizontal className="mr-2 h-4 w-4" /> Ask an Expert
+            </Link>
+          </Button>
+        </div>
       </div>
 
-      {modules.length === 0 ? (
+      {tabs.length === 0 ? (
         <Card className="border-dashed">
           <div className="flex flex-col items-center justify-center py-20 text-center">
             <FolderTree className="h-12 w-12 text-muted-foreground mb-4 opacity-50" />
@@ -68,42 +75,36 @@ export default function CourseDetail() {
           </CardHeader>
           <CardContent>
             <Accordion type="single" collapsible className="w-full">
-              {modules.sort((a,b) => a.order - b.order).map((mod: any) => (
-                <AccordionItem key={mod.id} value={`module-${mod.id}`}>
+              {tabs.sort((a,b) => a.order - b.order).map((tab: any) => (
+                <AccordionItem key={tab.id} value={`tab-${tab.id}`}>
                   <AccordionTrigger className="hover:text-primary transition-colors">
                     <div className="flex flex-col items-start">
-                      <span className="font-semibold text-lg">{mod.title}</span>
-                      {mod.description && (
+                      <span className="font-semibold text-lg">{tab.title}</span>
+                      {tab.description && (
                         <span className="text-sm text-muted-foreground font-normal mt-1 text-left">
-                          {mod.description}
+                          {tab.description}
                         </span>
                       )}
                     </div>
                   </AccordionTrigger>
                   <AccordionContent>
-                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 pt-4">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 pt-4">
                       <Button asChild variant="outline" className="h-24 flex flex-col items-center justify-center space-y-2 hover:border-primary">
-                        <Link to={`/dashboard/modules/${mod.id}/content`}>
+                        <Link to={`/dashboard/nodes/${tab.id}/content`}>
                           <FileText className="h-6 w-6 text-blue-500" />
-                          <span>Study Notes</span>
+                          <span>Content Nodes</span>
                         </Link>
                       </Button>
                       <Button asChild variant="outline" className="h-24 flex flex-col items-center justify-center space-y-2 hover:border-primary">
-                        <Link to={`/dashboard/modules/${mod.id}/flashcards`}>
+                        <Link to={`/dashboard/nodes/${tab.id}/flashcards`}>
                           <BookOpen className="h-6 w-6 text-green-500" />
                           <span>Flashcards</span>
                         </Link>
                       </Button>
                       <Button asChild variant="outline" className="h-24 flex flex-col items-center justify-center space-y-2 hover:border-primary">
-                        <Link to={`/dashboard/modules/${mod.id}/papers`}>
+                        <Link to={`/dashboard/nodes/${tab.id}/papers`}>
                           <FileText className="h-6 w-6 text-orange-500" />
                           <span>Practice Papers</span>
-                        </Link>
-                      </Button>
-                      <Button asChild variant="outline" className="h-24 flex flex-col items-center justify-center space-y-2 hover:border-primary">
-                        <Link to={`/dashboard/contact`}>
-                          <SendHorizontal className="h-6 w-6 text-purple-500" />
-                          <span>Ask Expert</span>
                         </Link>
                       </Button>
                     </div>

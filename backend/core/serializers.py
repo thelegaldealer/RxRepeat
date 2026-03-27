@@ -1,5 +1,5 @@
 from rest_framework import serializers
-from .models import User, University, Course, Material, PermissionRequest, Year, Module, ContentPage
+from .models import User, University, Course, Material, PermissionRequest, Year, CourseTab, ContentNode
 
 class UserSerializer(serializers.ModelSerializer):
     class Meta:
@@ -11,7 +11,7 @@ class RegisterSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = User
-        fields = ('id', 'first_name', 'last_name', 'email', 'password', 'password_confirm')
+        fields = ('id', 'first_name', 'last_name', 'email', 'password', 'password_confirm', 'university', 'course')
         extra_kwargs = {
             'password': {'write_only': True}
         }
@@ -19,6 +19,8 @@ class RegisterSerializer(serializers.ModelSerializer):
     def validate(self, data):
         if data['password'] != data['password_confirm']:
             raise serializers.ValidationError({"password": "Passwords must match."})
+        if not data.get('university') or not data.get('course'):
+            raise serializers.ValidationError({"error": "University and course are required."})
         from better_profanity import profanity
         if profanity.contains_profanity(data.get('first_name', '')) or profanity.contains_profanity(data.get('last_name', '')):
             raise serializers.ValidationError({"error": "Inappropriate name detected."})
@@ -33,6 +35,8 @@ class RegisterSerializer(serializers.ModelSerializer):
             email=validated_data['email'],
             first_name=validated_data['first_name'],
             last_name=validated_data['last_name'],
+            university=validated_data.get('university'),
+            course=validated_data.get('course'),
             is_active=False
         )
         user.set_password(validated_data['password'])
@@ -49,16 +53,16 @@ class RegisterSerializer(serializers.ModelSerializer):
         )
         return user
 
-class ContentPageSerializer(serializers.ModelSerializer):
+class ContentNodeSerializer(serializers.ModelSerializer):
     class Meta:
-        model = ContentPage
+        model = ContentNode
         fields = '__all__'
 
-class ModuleSerializer(serializers.ModelSerializer):
-    pages = ContentPageSerializer(many=True, read_only=True)
+class CourseTabSerializer(serializers.ModelSerializer):
+    nodes = ContentNodeSerializer(many=True, read_only=True)
     
     class Meta:
-        model = Module
+        model = CourseTab
         fields = '__all__'
 
 class UniversitySerializer(serializers.ModelSerializer):

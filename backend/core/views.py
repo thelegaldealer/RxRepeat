@@ -2,14 +2,28 @@ from rest_framework import viewsets, permissions, status, generics, exceptions
 from rest_framework.response import Response
 from rest_framework.decorators import action
 from django.shortcuts import get_object_or_404
-from .models import University, Course, Material, PermissionRequest, User, Year, Module, ContentPage, UserSubscription, FeeWaiver, ChatMember, ChatInvite, ChatGroup, Ticket
-from .permissions import IsSuperAdmin, CanEditContent, IsEnrolledStudent
+from .models import University, Course, Material, PermissionRequest, User, Year, CourseTab, ContentNode, UserSubscription, PreApprovedWaiver, ChatMember, ChatInvite, ChatGroup, Ticket
+from .permissions import IsOwner, CanManageContent, IsEnrolledStudent
 from .serializers import (
     UniversitySerializer, CourseSerializer, 
     MaterialSerializer, PermissionRequestSerializer, UserSerializer, YearSerializer,
-    ModuleSerializer, ContentPageSerializer,
+    CourseTabSerializer, ContentNodeSerializer,
     RegisterSerializer, AdministratorAnonymousTicketSerializer, SuperAdminIdentifiedTicketSerializer
 )
+
+def _get_allowed_courses_for_admin(user):
+    from django.db.models import Q
+    if user.role == 'owner':
+        return Course.objects.all()
+    if not hasattr(user, 'admin_profile'):
+        return Course.objects.none()
+    profile = user.admin_profile
+    if profile.is_global:
+        return Course.objects.all()
+    
+    return Course.objects.filter(
+        Q(admin_profiles=profile) | Q(university__admin_profiles=profile)
+    ).distinct()
 from rest_framework.views import APIView
 from rest_framework_simplejwt.tokens import AccessToken
 
@@ -25,7 +39,7 @@ class UniversityViewSet(viewsets.ModelViewSet):
 
     def get_permissions(self):
         if self.action in ['create', 'update', 'partial_update', 'destroy']:
-            return [IsSuperAdmin()]
+            return [IsOwner()]
         return [permissions.AllowAny()]
 
 class CourseViewSet(viewsets.ModelViewSet):
@@ -35,7 +49,7 @@ class CourseViewSet(viewsets.ModelViewSet):
 
     def get_permissions(self):
         if self.action in ['create', 'update', 'partial_update', 'destroy']:
-            return [IsSuperAdmin()]
+            return [IsOwner()]#
         return [permissions.AllowAny()]
 
 class YearViewSet(viewsets.ModelViewSet):
@@ -45,7 +59,7 @@ class YearViewSet(viewsets.ModelViewSet):
     
     def get_permissions(self):
         if self.action in ['create', 'update', 'partial_update', 'destroy']:
-            return [IsSuperAdmin()]
+            return [IsOwner()]
         return [permissions.AllowAny()]
 
 class CheckEmailView(APIView):
@@ -124,65 +138,51 @@ class UserViewSet(viewsets.ModelViewSet):
     serializer_class = UserSerializer
     permission_classes = [permissions.IsAdminUser]
 
-class ModuleViewSet(viewsets.ModelViewSet):
-    serializer_class = ModuleSerializer
-    filterset_fields = ['course']
+class CourseTabViewSet(viewsets.ModelViewSet):
+    serializer_class = CourseTabSerializer
+    filterset_fields = ['course', 'tab_type']
 
     def get_permissions(self):
         if self.action in ['create', 'update', 'partial_update', 'destroy']:
-            return [IsSuperAdmin()]
+            return [CanManageContent()]
         return [permissions.IsAuthenticated()]
 
     def get_queryset(self):
         user = self.request.user
         if not user.is_authenticated:
-            return Module.objects.none()
+            return CourseTab.objects.none()
             
-        if user.role in ['admin', 'super_admin']:
-            return Module.objects.all()
+        if user.role in ['admin', 'owner']:
+            allowed_courses = _get_allowed_courses_for_admin(user)
+            return CourseTab.objects.filter(course__in=allowed_courses)
             
-        from django.utils import timezone
-        now = timezone.now()
-        subs = UserSubscription.objects.filter(
-            user=user, status='active', current_period_end__gte=now
-        ).values_list('course_id', flat=True)
-        
-        waivers = FeeWaiver.objects.filter(
-            user=user, expiry_date__gte=now
-        ).values_list('courses__id', flat=True)
-        
-        allowed_course_ids = set(list(subs) + list(waivers))
-        return Module.objects.filter(course_id__in=allowed_course_ids)
+        if user.role == 'student' and user.course_id:
+            return CourseTab.objects.filter(course_id=user.course_id)
+            
+        return CourseTab.objects.none()
 
-class ContentPageViewSet(viewsets.ModelViewSet):
-    serializer_class = ContentPageSerializer
-    filterset_fields = ['module', 'content_type']
+class ContentNodeViewSet(viewsets.ModelViewSet):
+    serializer_class = ContentNodeSerializer
+    filterset_fields = ['tab', 'parent', 'node_type']
 
     def get_permissions(self):
         if self.action in ['create', 'update', 'partial_update', 'destroy']:
-            return [IsSuperAdmin()]
+            return [CanManageContent()]
         return [permissions.IsAuthenticated()]
 
     def get_queryset(self):
         user = self.request.user
         if not user.is_authenticated:
-            return ContentPage.objects.none()
+            return ContentNode.objects.none()
             
-        if user.role in ['admin', 'super_admin']:
-            return ContentPage.objects.all()
+        if user.role in ['admin', 'owner']:
+            allowed_courses = _get_allowed_courses_for_admin(user)
+            return ContentNode.objects.filter(tab__course__in=allowed_courses)
             
-        from django.utils import timezone
-        now = timezone.now()
-        subs = UserSubscription.objects.filter(
-            user=user, status='active', current_period_end__gte=now
-        ).values_list('course_id', flat=True)
-        
-        waivers = FeeWaiver.objects.filter(
-            user=user, expiry_date__gte=now
-        ).values_list('courses__id', flat=True)
-        
-        allowed_course_ids = set(list(subs) + list(waivers))
-        return ContentPage.objects.filter(module__course_id__in=allowed_course_ids)
+        if user.role == 'student' and user.course_id:
+            return ContentNode.objects.filter(tab__course_id=user.course_id)
+            
+        return ContentNode.objects.none()
 
 class VerifyEmailView(APIView):
     permission_classes = [permissions.AllowAny]
@@ -243,6 +243,14 @@ class GoogleLoginView(APIView):
             elif not user.is_active:
                 user.is_active = True
                 user.save()
+                
+            if not user.first_name or not user.last_name or not user.university_id or not user.course_id:
+                return Response({
+                    'registration_incomplete': True,
+                    'email': user.email,
+                    'first_name': user.first_name,
+                    'last_name': user.last_name
+                }, status=status.HTTP_200_OK)
             
             from .serializers import CustomTokenObtainPairSerializer
             from .models import ActiveSession
@@ -269,7 +277,7 @@ class GoogleLoginView(APIView):
             return Response({'error': 'Invalid token'}, status=status.HTTP_400_BAD_REQUEST)
 
 class SuperadminSubscriberView(APIView):
-    permission_classes = [IsSuperAdmin]
+    permission_classes = [IsOwner]
 
     def get(self, request):
         from django.utils import timezone
@@ -299,21 +307,15 @@ class MyCoursesView(APIView):
     permission_classes = [permissions.IsAuthenticated]
 
     def get(self, request):
-        from django.utils import timezone
-        now = timezone.now()
         user = request.user
-        
-        subs = UserSubscription.objects.filter(
-            user=user, status='active', current_period_end__gte=now
-        ).values_list('course_id', flat=True)
-        
-        waivers = FeeWaiver.objects.filter(
-            user=user, expiry_date__gte=now
-        ).values_list('courses__id', flat=True)
-        
-        allowed_course_ids = set(list(subs) + list(waivers))
-        
-        courses = Course.objects.filter(id__in=allowed_course_ids).select_related('university')
+        if user.role in ['admin', 'owner']:
+            courses = _get_allowed_courses_for_admin(user).select_related('university')
+        else:
+            if user.role == 'student' and user.course:
+                courses = Course.objects.filter(id=user.course.id).select_related('university')
+            else:
+                courses = Course.objects.none()
+                
         from .serializers import CourseSerializer
         return Response(CourseSerializer(courses, many=True).data)
 
@@ -323,7 +325,7 @@ from .serializers import FlashcardSetSerializer, FlashcardProgressSerializer, Pr
 class FlashcardSetViewSet(viewsets.ModelViewSet):
     queryset = FlashcardSet.objects.all()
     serializer_class = FlashcardSetSerializer
-    filterset_fields = ['module']
+    filterset_fields = ['node']
     permission_classes = [permissions.IsAuthenticated]
 
 class FlashcardProgressViewSet(viewsets.ModelViewSet):
@@ -340,7 +342,7 @@ class FlashcardProgressViewSet(viewsets.ModelViewSet):
 class PracticePaperViewSet(viewsets.ModelViewSet):
     queryset = PracticePaper.objects.all()
     serializer_class = PracticePaperSerializer
-    filterset_fields = ['module']
+    filterset_fields = ['node']
     permission_classes = [permissions.IsAuthenticated]
 
 from .models import ChatGroup, ChatMember, ChatInvite, InboxNotification, Announcement
@@ -379,8 +381,8 @@ class ChatInviteViewSet(viewsets.ModelViewSet):
         receiver = serializer.validated_data['receiver']
         target_course = serializer.validated_data['course']
         
-        sender_in_course = UserSubscription.objects.filter(user=self.request.user, course=target_course, status='active').exists() or FeeWaiver.objects.filter(user=self.request.user, courses=target_course).exists()
-        receiver_in_course = UserSubscription.objects.filter(user=receiver, course=target_course, status='active').exists() or FeeWaiver.objects.filter(user=receiver, courses=target_course).exists()
+        sender_in_course = getattr(self.request.user, 'course_id', None) == target_course.id or UserSubscription.objects.filter(user=self.request.user, course=target_course, status='active').exists()
+        receiver_in_course = getattr(receiver, 'course_id', None) == target_course.id or UserSubscription.objects.filter(user=receiver, course=target_course, status='active').exists()
         
         if not (sender_in_course and receiver_in_course):
             raise exceptions.PermissionDenied("Cross-course invites are forbidden.")
@@ -420,14 +422,60 @@ class TicketViewSet(viewsets.ModelViewSet):
     permission_classes = [permissions.IsAuthenticated]
 
     def get_queryset(self):
-        if self.request.user.role in ['super_admin', 'admin']:
+        if self.request.user.role in ['owner', 'admin']:
             return Ticket.objects.all()
         return Ticket.objects.filter(user=self.request.user)
 
     def get_serializer_class(self):
-        if self.request.user.role == 'super_admin':
+        if self.request.user.role == 'owner':
             return SuperAdminIdentifiedTicketSerializer
         return AdministratorAnonymousTicketSerializer
 
     def perform_create(self, serializer):
         serializer.save(user=self.request.user)
+
+class OnboardingView(APIView):
+    permission_classes = [permissions.AllowAny]
+
+    def post(self, request):
+        email = request.data.get('email')
+        university_id = request.data.get('university')
+        course_id = request.data.get('course')
+        first_name = request.data.get('first_name')
+        last_name = request.data.get('last_name')
+        
+        try:
+            user = User.objects.get(email=email)
+        except User.DoesNotExist:
+            return Response({'error': 'User not found'}, status=status.HTTP_404_NOT_FOUND)
+            
+        user.first_name = first_name
+        user.last_name = last_name
+        if university_id:
+            user.university_id = university_id
+        if course_id:
+            user.course_id = course_id
+            
+        user.is_active = True
+        user.save()
+        
+        from .serializers import CustomTokenObtainPairSerializer, UserSerializer
+        from .models import ActiveSession
+        from rest_framework_simplejwt.tokens import AccessToken
+        from datetime import datetime, timezone
+
+        refresh = CustomTokenObtainPairSerializer.get_token(user)
+        access = str(refresh.access_token)
+        
+        access_token_obj = AccessToken(access)
+        jti = access_token_obj['jti']
+        expires_at = datetime.fromtimestamp(access_token_obj['exp'], tz=timezone.utc)
+        
+        ActiveSession.objects.filter(user=user).delete()
+        ActiveSession.objects.create(user=user, session_token=jti, expires_at=expires_at)
+
+        return Response({
+            'access': access,
+            'refresh': str(refresh),
+            'user': UserSerializer(user).data
+        })
