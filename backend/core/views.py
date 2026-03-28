@@ -244,12 +244,23 @@ class GoogleLoginView(APIView):
                 user.is_active = True
                 user.save()
                 
-            if not user.first_name or not user.last_name or not user.university_id or not user.course_id:
+            # Role-aware registration completeness check
+            # Owner: only needs first_name + last_name (no university/course required)
+            # Admin: needs first_name + last_name + university + course
+            # Student: needs first_name + last_name + university + course
+            is_incomplete = False
+            if not user.first_name or not user.last_name:
+                is_incomplete = True
+            elif user.role != 'owner' and (not user.university_id or not user.course_id):
+                is_incomplete = True
+
+            if is_incomplete:
                 return Response({
                     'registration_incomplete': True,
                     'email': user.email,
                     'first_name': user.first_name,
-                    'last_name': user.last_name
+                    'last_name': user.last_name,
+                    'role': user.role
                 }, status=status.HTTP_200_OK)
             
             from .serializers import CustomTokenObtainPairSerializer
@@ -448,6 +459,14 @@ class OnboardingView(APIView):
             user = User.objects.get(email=email)
         except User.DoesNotExist:
             return Response({'error': 'User not found'}, status=status.HTTP_404_NOT_FOUND)
+
+        # Validate required fields based on role
+        if not first_name or not last_name:
+            return Response({'error': 'First name and last name are required.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        # Only owner bypasses university/course. Admin and student both require them.
+        if user.role != 'owner' and (not university_id or not course_id):
+            return Response({'error': 'University and course are required.'}, status=status.HTTP_400_BAD_REQUEST)
             
         user.first_name = first_name
         user.last_name = last_name

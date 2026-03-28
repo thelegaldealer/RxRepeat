@@ -40,11 +40,15 @@ export default function Login() {
     try {
       const res = await api.post('/auth/google/', { id_token: credentialResponse.credential });
       if (res.data.registration_incomplete) {
+        const role = res.data.role || 'student';
         navigate('/onboarding', { 
           state: { 
             email: res.data.email, 
             first_name: res.data.first_name, 
-            last_name: res.data.last_name 
+            last_name: res.data.last_name,
+            role: role,
+            // Only owner bypasses university/course onboarding
+            skipEnrollment: role === 'owner'
           } 
         });
         return;

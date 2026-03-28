@@ -23,6 +23,10 @@ export default function Onboarding() {
   const [courses, setCourses] = useState<Course[]>([]);
   const [error, setError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+
+  // Role-aware: owner/admin skip enrollment fields
+  const skipEnrollment = location.state?.skipEnrollment === true;
+  const role = location.state?.role || 'student';
   
   useEffect(() => {
     if (!location.state?.email) {
@@ -30,30 +34,45 @@ export default function Onboarding() {
     }
   }, [location, navigate]);
 
+  // Only fetch universities/courses if enrollment is required (student)
   useEffect(() => {
-    api.get<University[]>('/universities/').then(res => setUniversities(res.data)).catch(console.error);
-    api.get<Course[]>('/courses/').then(res => setCourses(res.data)).catch(console.error);
-  }, []);
+    if (!skipEnrollment) {
+      api.get<University[]>('/universities/').then(res => setUniversities(res.data)).catch(console.error);
+      api.get<Course[]>('/courses/').then(res => setCourses(res.data)).catch(console.error);
+    }
+  }, [skipEnrollment]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
     setIsLoading(true);
     
-    if (!universityId || !courseId || !firstName || !lastName) {
-      setError('All fields are required.');
+    if (!firstName || !lastName) {
+      setError('First name and last name are required.');
+      setIsLoading(false);
+      return;
+    }
+
+    // Only require university/course for students
+    if (!skipEnrollment && (!universityId || !courseId)) {
+      setError('University and course are required.');
       setIsLoading(false);
       return;
     }
 
     try {
-      const res = await api.post('/onboarding/', {
+      const payload: any = {
         email: location.state?.email,
         first_name: firstName,
         last_name: lastName,
-        university: universityId,
-        course: courseId
-      });
+      };
+      // Only send university/course for students
+      if (!skipEnrollment) {
+        payload.university = universityId;
+        payload.course = courseId;
+      }
+
+      const res = await api.post('/onboarding/', payload);
       login(res.data.access, res.data.refresh);
       navigate('/dashboard');
     } catch (err: any) {
@@ -70,10 +89,12 @@ export default function Onboarding() {
       <Card className="w-full max-w-md shadow-lg">
         <CardHeader className="space-y-1">
           <CardTitle className="text-2xl font-bold tracking-tight text-center">
-            Complete your profile
+            {skipEnrollment ? 'Confirm your details' : 'Complete your profile'}
           </CardTitle>
           <CardDescription className="text-center">
-            You're almost there! We just need a few more details.
+            {skipEnrollment 
+              ? 'Please confirm your name to continue.'
+              : "You're almost there! We just need a few more details."}
           </CardDescription>
         </CardHeader>
         <form onSubmit={handleSubmit}>
@@ -105,38 +126,43 @@ export default function Onboarding() {
               </div>
             </div>
 
-            <div className="space-y-2">
-              <Label htmlFor="university">University</Label>
-              <select 
-                id="university" 
-                className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
-                value={universityId} 
-                onChange={e => { setUniversityId(e.target.value); setCourseId(''); }}
-                required
-              >
-                <option value="">Select University</option>
-                {universities.map(u => (
-                  <option key={u.id} value={u.id}>{u.name}</option>
-                ))}
-              </select>
-            </div>
+            {/* University and Course fields - ONLY for students */}
+            {!skipEnrollment && (
+              <>
+                <div className="space-y-2">
+                  <Label htmlFor="university">University</Label>
+                  <select 
+                    id="university" 
+                    className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+                    value={universityId} 
+                    onChange={e => { setUniversityId(e.target.value); setCourseId(''); }}
+                    required
+                  >
+                    <option value="">Select University</option>
+                    {universities.map(u => (
+                      <option key={u.id} value={u.id}>{u.name}</option>
+                    ))}
+                  </select>
+                </div>
 
-            <div className="space-y-2">
-              <Label htmlFor="course">Course</Label>
-              <select 
-                id="course" 
-                className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
-                value={courseId} 
-                onChange={e => setCourseId(e.target.value)}
-                required
-                disabled={!universityId}
-              >
-                <option value="">Select Course</option>
-                {filteredCourses.map(c => (
-                  <option key={c.id} value={c.id}>{c.name} ({c.code})</option>
-                ))}
-              </select>
-            </div>
+                <div className="space-y-2">
+                  <Label htmlFor="course">Course</Label>
+                  <select 
+                    id="course" 
+                    className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+                    value={courseId} 
+                    onChange={e => setCourseId(e.target.value)}
+                    required
+                    disabled={!universityId}
+                  >
+                    <option value="">Select Course</option>
+                    {filteredCourses.map(c => (
+                      <option key={c.id} value={c.id}>{c.name} ({c.code})</option>
+                    ))}
+                  </select>
+                </div>
+              </>
+            )}
 
           </CardContent>
           <CardFooter>
