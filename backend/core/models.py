@@ -410,3 +410,4 @@ def create_default_course_tabs(sender, instance, created, **kwargs):
         CourseTab.objects.get_or_create(course=instance, name='Content', tab_type='content')
         CourseTab.objects.get_or_create(course=instance, name='Flashcards', tab_type='flashcards')
         CourseTab.objects.get_or_create(course=instance, name='Practice Papers', tab_type='practice_papers')
+        CourseTab.objects.get_or_create(course=instance, name='Contact an Expert', tab_type='contact_expert')

@@ -111,6 +111,25 @@ class CustomTokenObtainPairSerializer(TokenObtainPairSerializer):
         return token
 
     def validate(self, attrs):
+        from .models import User
+        email = attrs.get('email')
+        password = attrs.get('password')
+        
+        if email:
+            try:
+                user = User.objects.get(email__iexact=email)
+            except User.DoesNotExist:
+                from rest_framework.exceptions import AuthenticationFailed
+                raise AuthenticationFailed({'error': 'account_not_found', 'detail': 'Account not found. Please sign up or check your email.'})
+            
+            if not user.has_usable_password():
+                from rest_framework.exceptions import AuthenticationFailed
+                raise AuthenticationFailed({'error': 'google_auth_only', 'detail': 'This account was created with Google. Please use Continue with Google, or reset your password to log in with an email.'})
+            
+            if not user.check_password(password):
+                from rest_framework.exceptions import AuthenticationFailed
+                raise AuthenticationFailed({'error': 'wrong_password', 'detail': 'Incorrect password. Please try again or reset your password.'})
+
         data = super().validate(attrs)
         from rest_framework_simplejwt.tokens import AccessToken
         from .models import ActiveSession

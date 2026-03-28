@@ -26,7 +26,9 @@ export default function Login() {
       login(res.data.access, res.data.refresh);
       navigate('/dashboard');
     } catch (err: any) {
-      if (err.response?.data?.code === 'session_invalidated') {
+      if (err.response?.data?.detail && err.response?.data?.error) {
+        setError(err.response.data.detail);
+      } else if (err.response?.data?.code === 'session_invalidated') {
         setError('Your session on another device was cleared. Please login again.');
       } else {
         setError('Invalid credentials.');

@@ -11,7 +11,7 @@ services:
     rootDir: backend # Set the working directory to backend
     plan: free # Explicitly use Free tier
     buildCommand: "pip install -r requirements.txt && python manage.py collectstatic --no-input"
-    startCommand: "python manage.py migrate && gunicorn unimaster_backend.wsgi:application"
+    startCommand: "python manage.py migrate && python manage.py create_owner && python manage.py setup_academic_structure && gunicorn unimaster_backend.wsgi:application"
     envVars:
       - key: PYTHON_VERSION
         value: "3.11.0"
